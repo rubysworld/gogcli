@@ -1,4 +1,4 @@
-# gogcli
+# 📮 gog — Google in your terminal (Gmail, Calendar, Drive, Contacts).
 
 Minimal Google CLI in Go for:
 
