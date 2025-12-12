@@ -2,6 +2,7 @@ package googleapi
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/99designs/keyring"
@@ -65,6 +66,9 @@ func tokenSourceForAccountScopes(ctx context.Context, serviceLabel string, email
 		Endpoint:     google.Endpoint,
 		Scopes:       requiredScopes,
 	}
+
+	// Ensure refresh-token exchanges don't hang forever.
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{Timeout: defaultHTTPTimeout})
 
 	return cfg.TokenSource(ctx, &oauth2.Token{RefreshToken: tok.RefreshToken}), nil
 }
