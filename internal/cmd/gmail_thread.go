@@ -243,18 +243,23 @@ func decodeBase64URL(s string) (string, error) {
 }
 
 func decodeBase64URLBytes(s string) ([]byte, error) {
-	s = strings.TrimSpace(s)
-	if strings.ContainsAny(s, " \n\r\t") {
-		b := make([]byte, 0, len(s))
-		for i := 0; i < len(s); i++ {
-			switch s[i] {
-			case ' ', '\n', '\r', '\t':
-				continue
-			default:
-				b = append(b, s[i])
+	var filtered []byte
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case ' ', '\n', '\r', '\t':
+			if filtered == nil {
+				filtered = make([]byte, 0, len(s))
+				filtered = append(filtered, s[:i]...)
+			}
+			continue
+		default:
+			if filtered != nil {
+				filtered = append(filtered, s[i])
 			}
 		}
-		s = string(b)
+	}
+	if filtered != nil {
+		s = string(filtered)
 	}
 
 	b, err := base64.RawURLEncoding.DecodeString(s)

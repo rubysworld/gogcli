@@ -12,6 +12,7 @@
 ### Fixed
 
 - Secrets: keyring file-backend fallback now stores encrypted entries in `$(os.UserConfigDir())/gogcli/keyring/` and supports non-interactive via `GOG_KEYRING_PASSWORD` (PR #13 — thanks @advait).
+- Gmail: decode base64url attachment/message-part payloads (PR #15 — thanks @shanelindsay).
 
 ## 0.1.1 - 2025-12-17
 

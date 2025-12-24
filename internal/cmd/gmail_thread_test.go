@@ -90,7 +90,7 @@ func TestDecodeBase64URLBytes(t *testing.T) {
 	}
 
 	enc := base64.RawURLEncoding.EncodeToString(want[:1])
-	enc = enc[:1] + "\n" + enc[1:]
+	enc = " \t" + enc[:1] + "\r\n" + enc[1:] + "\t "
 	got, err = decodeBase64URLBytes(enc)
 	if err != nil {
 		t.Fatalf("err: %v", err)
