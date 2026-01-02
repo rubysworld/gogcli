@@ -687,13 +687,12 @@ Tip: if you want to avoid macOS Keychain prompts during these runs, set `GOG_KEY
 Build and run:
 
 ```bash
-make
-./bin/gog auth add you@gmail.com
+make gog ARGS='auth add you@gmail.com'
 ```
 
 For clean stdout when scripting:
 
-- `./bin/gog --json gmail search "from:me" | jq .`
+- `make gog ARGS='--json gmail search "from:me"' | jq .`
 
 ## License
 
