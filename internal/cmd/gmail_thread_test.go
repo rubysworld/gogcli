@@ -16,6 +16,10 @@ func TestCollectAttachments(t *testing.T) {
 				Body:     &gmail.MessagePartBody{AttachmentId: "att1", Size: 123},
 			},
 			{
+				MimeType: "image/png",
+				Body:     &gmail.MessagePartBody{AttachmentId: "att-inline", Size: 42},
+			},
+			{
 				Parts: []*gmail.MessagePart{
 					{
 						Filename: "b.pdf",
@@ -27,11 +31,14 @@ func TestCollectAttachments(t *testing.T) {
 		},
 	}
 	atts := collectAttachments(p)
-	if len(atts) != 2 {
+	if len(atts) != 3 {
 		t.Fatalf("unexpected: %#v", atts)
 	}
 	if atts[0].AttachmentID == "" || atts[1].AttachmentID == "" {
 		t.Fatalf("missing attachment ids: %#v", atts)
+	}
+	if atts[1].Filename != "attachment" {
+		t.Fatalf("expected fallback filename, got: %#v", atts[1])
 	}
 }
 
