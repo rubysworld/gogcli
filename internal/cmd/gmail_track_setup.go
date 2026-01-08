@@ -8,9 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/steipete/gogcli/internal/input"
@@ -30,14 +28,9 @@ type GmailTrackSetupCmd struct {
 
 func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
+	account, cfg, err := loadTrackingConfigForAccount(flags)
 	if err != nil {
 		return err
-	}
-
-	cfg, err := tracking.LoadConfig(account)
-	if err != nil {
-		return fmt.Errorf("load tracking config: %w", err)
 	}
 
 	workerName := strings.TrimSpace(c.WorkerName)
@@ -45,9 +38,9 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 		workerName = strings.TrimSpace(cfg.WorkerName)
 	}
 	if workerName == "" {
-		workerName = defaultWorkerName(account)
+		workerName = tracking.DefaultWorkerName(account)
 	}
-	workerName = sanitizeWorkerName(workerName)
+	workerName = tracking.SanitizeWorkerName(workerName)
 	if workerName == "" {
 		return fmt.Errorf("invalid worker name")
 	}
@@ -121,7 +114,13 @@ func (c *GmailTrackSetupCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 
 	if c.Deploy {
-		dbID, deployErr := deployTrackingWorker(ctx, u, c.WorkerDir, workerName, c.DatabaseName, key, adminKey)
+		dbID, deployErr := tracking.DeployWorker(ctx, u.Err(), tracking.DeployOptions{
+			WorkerDir:    c.WorkerDir,
+			WorkerName:   workerName,
+			DatabaseName: c.DatabaseName,
+			TrackingKey:  key,
+			AdminKey:     adminKey,
+		})
 		if deployErr != nil {
 			return deployErr
 		}
@@ -169,156 +168,4 @@ func generateAdminKey() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func defaultWorkerName(account string) string {
-	sanitized := sanitizeWorkerName(account)
-	if sanitized == "" {
-		return "gog-email-tracker"
-	}
-	return "gog-email-tracker-" + sanitized
-}
-
-func sanitizeWorkerName(name string) string {
-	name = strings.ToLower(strings.TrimSpace(name))
-	if name == "" {
-		return ""
-	}
-	re := regexp.MustCompile(`[^a-z0-9-]+`)
-	name = re.ReplaceAllString(name, "-")
-	name = strings.Trim(name, "-")
-	for strings.Contains(name, "--") {
-		name = strings.ReplaceAll(name, "--", "-")
-	}
-	if len(name) > 63 {
-		name = strings.Trim(name[:63], "-")
-	}
-	return name
-}
-
-func deployTrackingWorker(ctx context.Context, u *ui.UI, workerDir, workerName, dbName, trackingKey, adminKey string) (string, error) {
-	if _, err := exec.LookPath("wrangler"); err != nil {
-		return "", fmt.Errorf("wrangler not found in PATH")
-	}
-
-	workerDir = filepath.Clean(workerDir)
-	if _, err := os.Stat(filepath.Join(workerDir, "wrangler.toml")); err != nil {
-		return "", fmt.Errorf("worker dir missing wrangler.toml: %s", workerDir)
-	}
-
-	u.Err().Printf("deploy\tstarting (worker=%s, db=%s)", workerName, dbName)
-
-	dbID, err := ensureD1Database(ctx, workerDir, dbName)
-	if err != nil {
-		return "", err
-	}
-
-	if runErr := runWranglerCommand(ctx, workerDir, nil, "d1", "execute", dbName, "--file", "schema.sql", "--remote"); runErr != nil {
-		return "", runErr
-	}
-
-	if runErr := runWranglerCommand(ctx, workerDir, strings.NewReader(trackingKey+"\n"), "secret", "put", "TRACKING_KEY", "--name", workerName); runErr != nil {
-		return "", runErr
-	}
-
-	if runErr := runWranglerCommand(ctx, workerDir, strings.NewReader(adminKey+"\n"), "secret", "put", "ADMIN_KEY", "--name", workerName); runErr != nil {
-		return "", runErr
-	}
-
-	configPath, err := writeWranglerConfig(workerDir, workerName, dbName, dbID)
-	if err != nil {
-		return "", err
-	}
-	defer os.Remove(configPath)
-
-	if err := runWranglerCommand(ctx, workerDir, nil, "deploy", "--config", configPath, "--name", workerName); err != nil {
-		return "", err
-	}
-
-	u.Err().Printf("deploy\tok")
-
-	return dbID, nil
-}
-
-func ensureD1Database(ctx context.Context, workerDir, dbName string) (string, error) {
-	out, err := runWranglerCommandOutput(ctx, workerDir, nil, "d1", "create", dbName)
-	if err != nil {
-		outInfo, infoErr := runWranglerCommandOutput(ctx, workerDir, nil, "d1", "info", dbName)
-		if infoErr != nil {
-			return "", err
-		}
-		id := parseDatabaseID(outInfo)
-		if id == "" {
-			return "", fmt.Errorf("failed to parse database_id from wrangler d1 info output")
-		}
-		return id, nil
-	}
-
-	id := parseDatabaseID(out)
-	if id == "" {
-		return "", fmt.Errorf("failed to parse database_id from wrangler d1 create output")
-	}
-	return id, nil
-}
-
-func parseDatabaseID(out string) string {
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`database_id\\s*=\\s*\"([^\"]+)\"`),
-		regexp.MustCompile(`database_id\\s*:\\s*\"?([a-zA-Z0-9-]+)\"?`),
-		regexp.MustCompile(`Database ID:\\s*([a-zA-Z0-9-]+)`),
-	}
-	for _, re := range patterns {
-		if match := re.FindStringSubmatch(out); len(match) > 1 {
-			return match[1]
-		}
-	}
-	return ""
-}
-
-func writeWranglerConfig(workerDir, workerName, dbName, dbID string) (string, error) {
-	templatePath := filepath.Join(workerDir, "wrangler.toml")
-	// #nosec G304 -- path is derived from the configured worker dir
-	data, err := os.ReadFile(templatePath)
-	if err != nil {
-		return "", fmt.Errorf("read wrangler.toml: %w", err)
-	}
-
-	content := string(data)
-	content = replaceTomlString(content, "name", workerName)
-	content = replaceTomlString(content, "database_name", dbName)
-	content = replaceTomlString(content, "database_id", dbID)
-
-	tmpFile, err := os.CreateTemp("", "gog-wrangler-*.toml")
-	if err != nil {
-		return "", fmt.Errorf("create temp wrangler config: %w", err)
-	}
-	defer tmpFile.Close()
-
-	if _, err := tmpFile.WriteString(content); err != nil {
-		return "", fmt.Errorf("write temp wrangler config: %w", err)
-	}
-
-	return tmpFile.Name(), nil
-}
-
-func replaceTomlString(content, key, value string) string {
-	re := regexp.MustCompile(fmt.Sprintf(`(?m)^%s\\s*=\\s*\".*\"\\s*$`, regexp.QuoteMeta(key)))
-	return re.ReplaceAllString(content, fmt.Sprintf(`%s = \"%s\"`, key, value))
-}
-
-func runWranglerCommand(ctx context.Context, dir string, stdin io.Reader, args ...string) error {
-	_, err := runWranglerCommandOutput(ctx, dir, stdin, args...)
-	return err
-}
-
-func runWranglerCommandOutput(ctx context.Context, dir string, stdin io.Reader, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "wrangler", args...)
-	cmd.Dir = dir
-	cmd.Stdin = stdin
-	cmd.Env = append(os.Environ(), "WRANGLER_SEND_METRICS=false")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return string(out), fmt.Errorf("wrangler %s failed: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
-	}
-	return string(out), nil
 }

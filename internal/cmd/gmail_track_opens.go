@@ -26,14 +26,9 @@ type GmailTrackOpensCmd struct {
 
 func (c *GmailTrackOpensCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
+	_, cfg, err := loadTrackingConfigForAccount(flags)
 	if err != nil {
 		return err
-	}
-
-	cfg, err := tracking.LoadConfig(account)
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
 	}
 	if !cfg.IsConfigured() {
 		return fmt.Errorf("tracking not configured; run 'gog gmail track setup' first")

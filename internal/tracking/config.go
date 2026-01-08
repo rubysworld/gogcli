@@ -7,11 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/steipete/gogcli/internal/config"
 )
 
 var errMissingAccount = errors.New("missing account")
+
+const trackingConfigVersion = 1
 
 // Config holds tracking configuration for a single account.
 type Config struct {
@@ -26,7 +29,9 @@ type Config struct {
 }
 
 type fileConfig struct {
-	Accounts map[string]*Config `json:"accounts,omitempty"`
+	Version   int                `json:"version,omitempty"`
+	UpdatedAt string             `json:"updated_at,omitempty"`
+	Accounts  map[string]*Config `json:"accounts,omitempty"`
 }
 
 // ConfigPath returns the path to the tracking config file.
@@ -146,6 +151,8 @@ func SaveConfig(account string, cfg *Config) error {
 	}
 
 	fileCfg.Accounts[account] = &toSave
+	fileCfg.Version = trackingConfigVersion
+	fileCfg.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 
 	// Ensure directory exists
 	if _, mkErr := config.EnsureDir(); mkErr != nil {

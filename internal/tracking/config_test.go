@@ -77,6 +77,9 @@ func TestConfigRoundTrip(t *testing.T) {
 	if strings.Contains(s, "tracking_key") || strings.Contains(s, "admin_key") {
 		t.Fatalf("expected secrets omitted from config file, got:\n%s", s)
 	}
+	if !strings.Contains(s, "\"version\"") || !strings.Contains(s, "\"updated_at\"") {
+		t.Fatalf("expected version metadata in config file, got:\n%s", s)
+	}
 }
 
 func TestLoadConfigMissing(t *testing.T) {

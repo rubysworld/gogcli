@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/steipete/gogcli/internal/tracking"
@@ -13,14 +12,9 @@ type GmailTrackStatusCmd struct{}
 
 func (c *GmailTrackStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
-	account, err := requireAccount(flags)
+	account, cfg, err := loadTrackingConfigForAccount(flags)
 	if err != nil {
 		return err
-	}
-
-	cfg, err := tracking.LoadConfig(account)
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
 	}
 
 	path, _ := tracking.ConfigPath()

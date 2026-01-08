@@ -216,9 +216,7 @@ func buildSendBatches(toRecipients, ccRecipients, bccRecipients []string, track,
 	}
 
 	trackingRecipient := ""
-	if len(toRecipients) > 0 {
-		trackingRecipient = toRecipients[0]
-	}
+	trackingRecipient = firstRecipient(toRecipients, ccRecipients, bccRecipients)
 	return []sendBatch{{
 		To:                toRecipients,
 		Cc:                ccRecipients,
@@ -239,8 +237,8 @@ func sendGmailBatches(ctx context.Context, svc *gmail.Service, opts sendMessageO
 		trackingID := ""
 		if opts.Track {
 			recipient := strings.TrimSpace(batch.TrackingRecipient)
-			if recipient == "" && len(batch.To) > 0 {
-				recipient = strings.TrimSpace(batch.To[0])
+			if recipient == "" {
+				recipient = strings.TrimSpace(firstRecipient(batch.To, batch.Cc, batch.Bcc))
 			}
 			pixelURL, blob, pixelErr := tracking.GeneratePixelURL(opts.TrackingCfg, recipient, opts.Subject)
 			if pixelErr != nil {
@@ -282,11 +280,9 @@ func sendGmailBatches(ctx context.Context, svc *gmail.Service, opts sendMessageO
 			return nil, err
 		}
 
-		resultRecipient := ""
-		if batch.TrackingRecipient != "" {
-			resultRecipient = batch.TrackingRecipient
-		} else if len(batch.To) > 0 {
-			resultRecipient = batch.To[0]
+		resultRecipient := strings.TrimSpace(batch.TrackingRecipient)
+		if resultRecipient == "" {
+			resultRecipient = strings.TrimSpace(firstRecipient(batch.To, batch.Cc, batch.Bcc))
 		}
 		results = append(results, sendResult{
 			To:         resultRecipient,
@@ -359,6 +355,19 @@ func writeSendResults(ctx context.Context, u *ui.UI, fromAddr string, results []
 	}
 
 	return nil
+}
+
+func firstRecipient(toRecipients, ccRecipients, bccRecipients []string) string {
+	if len(toRecipients) > 0 {
+		return toRecipients[0]
+	}
+	if len(ccRecipients) > 0 {
+		return ccRecipients[0]
+	}
+	if len(bccRecipients) > 0 {
+		return bccRecipients[0]
+	}
+	return ""
 }
 
 func injectTrackingPixelHTML(htmlBody, pixelHTML string) string {
