@@ -23,6 +23,7 @@ func TestPromptLineFrom(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PromptLineFrom: %v", err)
 	}
+
 	if line != "hello" {
 		t.Fatalf("unexpected line: %q", line)
 	}

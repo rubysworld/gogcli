@@ -30,6 +30,7 @@ func TestKeyringStore_ListDeleteDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTokens: %v", err)
 	}
+
 	if len(tokens) != 2 {
 		t.Fatalf("expected 2 tokens, got %d", len(tokens))
 	}
@@ -38,8 +39,8 @@ func TestKeyringStore_ListDeleteDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeleteToken: %v", err)
 	}
-	_, err = store.GetToken(tok1.Email)
-	if err == nil {
+
+	if _, getErr := store.GetToken(tok1.Email); getErr == nil {
 		t.Fatalf("expected error for deleted token")
 	}
 
@@ -47,11 +48,10 @@ func TestKeyringStore_ListDeleteDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetDefaultAccount: %v", err)
 	}
-	def, err := store.GetDefaultAccount()
-	if err != nil {
+
+	if def, err := store.GetDefaultAccount(); err != nil {
 		t.Fatalf("GetDefaultAccount: %v", err)
-	}
-	if def != "a@b.com" {
+	} else if def != "a@b.com" {
 		t.Fatalf("unexpected default account: %q", def)
 	}
 
@@ -65,6 +65,7 @@ func TestParseTokenKey(t *testing.T) {
 	if email, ok := ParseTokenKey("token:a@b.com"); !ok || email != "a@b.com" {
 		t.Fatalf("unexpected parse: %q ok=%v", email, ok)
 	}
+
 	if _, ok := ParseTokenKey("nope"); ok {
 		t.Fatalf("expected invalid token key")
 	}
@@ -74,6 +75,7 @@ func TestAllowedBackends(t *testing.T) {
 	if _, err := allowedBackends(KeyringBackendInfo{Value: "keychain"}); err != nil {
 		t.Fatalf("keychain allowed: %v", err)
 	}
+
 	if _, err := allowedBackends(KeyringBackendInfo{Value: "file"}); err != nil {
 		t.Fatalf("file allowed: %v", err)
 	}
@@ -88,6 +90,7 @@ func TestWrapKeychainError(t *testing.T) {
 
 		return
 	}
+
 	if !errors.Is(wrapped, errTestKeychain) || wrapped.Error() != errTestKeychain.Error() {
 		t.Fatalf("expected passthrough error, got: %v", wrapped)
 	}

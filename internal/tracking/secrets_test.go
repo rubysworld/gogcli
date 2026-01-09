@@ -22,10 +22,12 @@ func TestSaveAndLoadSecrets(t *testing.T) {
 	if err := SaveSecrets("a@b.com", "track", "admin"); err != nil {
 		t.Fatalf("SaveSecrets: %v", err)
 	}
+
 	track, admin, err := LoadSecrets("a@b.com")
 	if err != nil {
 		t.Fatalf("LoadSecrets: %v", err)
 	}
+
 	if track != "track" || admin != "admin" {
 		t.Fatalf("unexpected secrets: %q %q", track, admin)
 	}
@@ -37,6 +39,7 @@ func TestLoadSecrets_LegacyFallback(t *testing.T) {
 	if err := secrets.SetSecret(legacyTrackingKeySecretKey, []byte("legacy-track")); err != nil {
 		t.Fatalf("SetSecret legacy: %v", err)
 	}
+
 	if err := secrets.SetSecret(legacyAdminKeySecretKey, []byte("legacy-admin")); err != nil {
 		t.Fatalf("SetSecret legacy admin: %v", err)
 	}
@@ -45,6 +48,7 @@ func TestLoadSecrets_LegacyFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadSecrets: %v", err)
 	}
+
 	if track != "legacy-track" || admin != "legacy-admin" {
 		t.Fatalf("unexpected legacy secrets: %q %q", track, admin)
 	}

@@ -25,6 +25,7 @@ func TestSetAndGetSecret_FileBackend(t *testing.T) {
 	if err := SetSecret("test/key", []byte("value")); err != nil {
 		t.Fatalf("SetSecret: %v", err)
 	}
+
 	if val, err := GetSecret("test/key"); err != nil {
 		t.Fatalf("GetSecret: %v", err)
 	} else if string(val) != "value" {
@@ -40,6 +41,7 @@ func TestKeyringStore_TokenRoundTrip(t *testing.T) {
 	if err := store.SetToken("a@b.com", tok); err != nil {
 		t.Fatalf("SetToken: %v", err)
 	}
+
 	if got, err := store.GetToken("a@b.com"); err != nil {
 		t.Fatalf("GetToken: %v", err)
 	} else if got.RefreshToken != "rt" {
@@ -50,6 +52,7 @@ func TestKeyringStore_TokenRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Keys: %v", err)
 	}
+
 	if len(keys) == 0 {
 		t.Fatalf("expected keys")
 	}

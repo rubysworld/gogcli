@@ -119,6 +119,7 @@ func TestDeployWorker_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeployWorker: %v", err)
 	}
+
 	if dbID != "db-create" {
 		t.Fatalf("unexpected db id: %q", dbID)
 	}
@@ -139,6 +140,7 @@ func TestEnsureD1Database_InfoFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensureD1Database: %v", err)
 	}
+
 	if dbID != "db-info" {
 		t.Fatalf("unexpected db id: %q", dbID)
 	}
@@ -157,13 +159,16 @@ func TestWriteWranglerConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
+
 	content := string(data)
 	if !strings.Contains(content, "worker-name") || strings.Contains(content, "old") {
 		t.Fatalf("missing name replacement: %q", content)
 	}
+
 	if !strings.Contains(content, "db-name") {
 		t.Fatalf("missing database_name replacement: %q", content)
 	}
+
 	if !strings.Contains(content, "db-id") {
 		t.Fatalf("missing database_id replacement: %q", content)
 	}
@@ -171,10 +176,17 @@ func TestWriteWranglerConfig(t *testing.T) {
 
 func writeWranglerFiles(t *testing.T, dir string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, "wrangler.toml"), []byte("name = \"old\"\ndatabase_name = \"old\"\ndatabase_id = \"old\"\n"), 0o600); err != nil {
+	wranglerPath := filepath.Join(dir, "wrangler.toml")
+
+	err := os.WriteFile(wranglerPath, []byte("name = \"old\"\ndatabase_name = \"old\"\ndatabase_id = \"old\"\n"), 0o600)
+	if err != nil {
 		t.Fatalf("write wrangler.toml: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "schema.sql"), []byte(""), 0o600); err != nil {
+
+	schemaPath := filepath.Join(dir, "schema.sql")
+
+	err = os.WriteFile(schemaPath, []byte(""), 0o600)
+	if err != nil {
 		t.Fatalf("write schema.sql: %v", err)
 	}
 }
@@ -182,7 +194,8 @@ func writeWranglerFiles(t *testing.T, dir string) {
 func writeWranglerStub(t *testing.T, dir string) string {
 	t.Helper()
 	path := filepath.Join(dir, "wrangler")
-	script := `#!/bin/sh
+
+	err := os.WriteFile(path, []byte(`#!/bin/sh
 set -e
 cmd="$1"
 shift
@@ -222,8 +235,8 @@ case "$cmd" in
 esac
 echo "unexpected args" >&2
 exit 2
-`
-	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
+`), 0o700)
+	if err != nil {
 		t.Fatalf("write wrangler stub: %v", err)
 	}
 
