@@ -23,7 +23,10 @@ import (
 	"github.com/steipete/gogcli/internal/secrets"
 )
 
-var errBoom = errors.New("boom")
+var (
+	errBoom          = errors.New("boom")
+	errShouldNotCall = errors.New("should not call")
+)
 
 type fakeStore struct {
 	tokens       []secrets.Token
@@ -603,7 +606,7 @@ func TestManageServer_HandleOAuthCallback_FileBackendSkipsKeychain(t *testing.T)
 		return secrets.KeyringBackendInfo{Value: "file", Source: "env"}, nil
 	}
 	ensureKeychainAccess = func() error {
-		return errors.New("should not call")
+		return errShouldNotCall
 	}
 
 	readClientCredentials = func() (config.ClientCredentials, error) {
@@ -627,6 +630,7 @@ func TestManageServer_HandleOAuthCallback_FileBackendSkipsKeychain(t *testing.T)
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
+
 	t.Cleanup(func() { _ = ln.Close() })
 
 	store := &fakeStore{}

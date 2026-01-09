@@ -70,6 +70,7 @@ func shouldEnsureKeychainAccess() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return backendInfo.Value != "file", nil
 }
 
@@ -343,6 +344,7 @@ func (ms *ManageServer) handleOAuthCallback(w http.ResponseWriter, r *http.Reque
 
 		return
 	}
+
 	if needKeychain {
 		if err := ensureKeychainAccess(); err != nil { //nolint:contextcheck,nolintlint // keychain ops don't use context; nolint unused on non-Darwin
 			w.WriteHeader(http.StatusInternalServerError)
