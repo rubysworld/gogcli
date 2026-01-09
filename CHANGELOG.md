@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 - Unreleased
+
+### Added
+
+- Build: Windows arm64 release binary.
+
 ## 0.5.0 - 2026-01-09
 
 ### Highlights
