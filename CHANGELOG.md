@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2 - 2026-01-10
+
+### Fixed
+
+- Release builds: embed version/commit/date so `gog --version` is correct (Homebrew/tap installs too).
+
 ## 0.5.1 - 2026-01-09
 
 ### Added

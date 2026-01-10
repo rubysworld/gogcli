@@ -9,6 +9,11 @@ builds:
   - id: gog
     main: ./cmd/gog
     binary: gog
+    ldflags: >-
+      -s -w
+      -X github.com/steipete/gogcli/internal/cmd.version={{ .Tag }}
+      -X github.com/steipete/gogcli/internal/cmd.commit={{ .ShortCommit }}
+      -X github.com/steipete/gogcli/internal/cmd.date={{ .Date }}
     env:
       - CGO_ENABLED=0
     targets:
@@ -19,6 +24,11 @@ builds:
   - id: gog_darwin
     main: ./cmd/gog
     binary: gog
+    ldflags: >-
+      -s -w
+      -X github.com/steipete/gogcli/internal/cmd.version={{ .Tag }}
+      -X github.com/steipete/gogcli/internal/cmd.commit={{ .ShortCommit }}
+      -X github.com/steipete/gogcli/internal/cmd.date={{ .Date }}
     env:
       - CGO_ENABLED=1
     targets:
