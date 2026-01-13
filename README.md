@@ -1,12 +1,13 @@
 # 🧭 gogcli — Google in your terminal.
 
-Google in your terminal — CLI for Gmail, Calendar, Drive, Docs, Slides, Sheets, Contacts, Tasks, People, Groups (Workspace), and Keep (Workspace-only).
+Google in your terminal — CLI for Gmail, Calendar, Classroom, Drive, Docs, Slides, Sheets, Contacts, Tasks, People, Groups (Workspace), and Keep (Workspace-only).
 
 ## Features
 
 - **Gmail** - search threads, send emails, manage labels, drafts, filters, delegation, vacation settings, and watch (Pub/Sub push)
 - **Email tracking** - track opens for `gog gmail send --track` with a small Cloudflare Worker backend
 - **Calendar** - list/create/update events, detect conflicts, manage invitations, check free/busy status, team calendars
+- **Classroom** - list courses, rosters, coursework, submissions, announcements, topics, invitations, guardians
 - **Drive** - list/search/upload/download files, manage permissions, organize folders
 - **Contacts** - search/create/update contacts, access Workspace directory
 - **Tasks** - manage tasklists and tasks: create/add/update/done/undo/delete/clear
@@ -64,6 +65,7 @@ Before adding an account, create OAuth2 credentials from Google Cloud Console:
    - Gmail API: https://console.cloud.google.com/apis/api/gmail.googleapis.com
    - Google Calendar API: https://console.cloud.google.com/apis/api/calendar-json.googleapis.com
    - Google Drive API: https://console.cloud.google.com/apis/api/drive.googleapis.com
+   - Google Classroom API: https://console.cloud.google.com/apis/api/classroom.googleapis.com
    - People API (Contacts): https://console.cloud.google.com/apis/api/people.googleapis.com
    - Google Tasks API: https://console.cloud.google.com/apis/api/tasks.googleapis.com
    - Google Sheets API: https://console.cloud.google.com/apis/api/sheets.googleapis.com

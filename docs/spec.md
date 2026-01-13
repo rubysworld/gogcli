@@ -6,6 +6,7 @@ Build a single, clean, modern Go CLI that talks to:
 
 - Gmail API
 - Google Calendar API
+- Google Classroom API
 - Google Drive API
 - Google People API (Contacts + directory)
 
@@ -134,7 +135,7 @@ Flag aliases:
 ### Implemented
 
 - `gog auth credentials <credentials.json|->`
-- `gog auth add <email> [--services user|all|gmail,calendar,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--manual] [--force-consent]`
+- `gog auth add <email> [--services user|all|gmail,calendar,classroom,drive,docs,contacts,tasks,sheets,people,groups] [--readonly] [--drive-scope full|readonly|file] [--manual] [--force-consent]`
 - `gog auth services [--markdown]`
 - `gog auth keep <email> --key <service-account.json>` (Google Keep; Workspace only)
 - `gog auth list`
@@ -165,6 +166,58 @@ Flag aliases:
 - `gog calendar delete <calendarId> <eventId>`
 - `gog calendar freebusy <calendarIds> --from RFC3339 --to RFC3339`
 - `gog calendar respond <calendarId> <eventId> --status accepted|declined|tentative [--send-updates all|none|externalOnly]`
+- `gog classroom courses [--state ...] [--max N] [--page TOKEN]`
+- `gog classroom courses get <courseId>`
+- `gog classroom courses create --name NAME [--owner me] [--state ACTIVE|...]`
+- `gog classroom courses update <courseId> [--name ...] [--state ...]`
+- `gog classroom courses delete <courseId>`
+- `gog classroom courses archive <courseId>`
+- `gog classroom courses unarchive <courseId>`
+- `gog classroom courses join <courseId> [--role student|teacher] [--user me]`
+- `gog classroom courses leave <courseId> [--role student|teacher] [--user me]`
+- `gog classroom students <courseId> [--max N] [--page TOKEN]`
+- `gog classroom students get <courseId> <userId>`
+- `gog classroom students add <courseId> <userId> [--enrollment-code CODE]`
+- `gog classroom students remove <courseId> <userId>`
+- `gog classroom teachers <courseId> [--max N] [--page TOKEN]`
+- `gog classroom teachers get <courseId> <userId>`
+- `gog classroom teachers add <courseId> <userId>`
+- `gog classroom teachers remove <courseId> <userId>`
+- `gog classroom coursework <courseId> [--state ...] [--max N] [--page TOKEN]`
+- `gog classroom coursework get <courseId> <courseworkId>`
+- `gog classroom coursework create <courseId> --title TITLE [--type ASSIGNMENT|...]`
+- `gog classroom coursework update <courseId> <courseworkId> [--title ...]`
+- `gog classroom coursework delete <courseId> <courseworkId>`
+- `gog classroom coursework assignees <courseId> <courseworkId> [--mode ...] [--add-student ...]`
+- `gog classroom submissions <courseId> <courseworkId> [--state ...] [--max N] [--page TOKEN]`
+- `gog classroom submissions get <courseId> <courseworkId> <submissionId>`
+- `gog classroom submissions turn-in <courseId> <courseworkId> <submissionId>`
+- `gog classroom submissions reclaim <courseId> <courseworkId> <submissionId>`
+- `gog classroom submissions return <courseId> <courseworkId> <submissionId>`
+- `gog classroom submissions grade <courseId> <courseworkId> <submissionId> [--draft N] [--assigned N]`
+- `gog classroom announcements <courseId> [--state ...] [--max N] [--page TOKEN]`
+- `gog classroom announcements get <courseId> <announcementId>`
+- `gog classroom announcements create <courseId> --text TEXT`
+- `gog classroom announcements update <courseId> <announcementId> [--text ...]`
+- `gog classroom announcements delete <courseId> <announcementId>`
+- `gog classroom announcements assignees <courseId> <announcementId> [--mode ...]`
+- `gog classroom topics <courseId> [--max N] [--page TOKEN]`
+- `gog classroom topics get <courseId> <topicId>`
+- `gog classroom topics create <courseId> --name NAME`
+- `gog classroom topics update <courseId> <topicId> --name NAME`
+- `gog classroom topics delete <courseId> <topicId>`
+- `gog classroom invitations [--course ID] [--user ID]`
+- `gog classroom invitations get <invitationId>`
+- `gog classroom invitations create <courseId> <userId> --role STUDENT|TEACHER|OWNER`
+- `gog classroom invitations accept <invitationId>`
+- `gog classroom invitations delete <invitationId>`
+- `gog classroom guardians <studentId> [--max N] [--page TOKEN]`
+- `gog classroom guardians get <studentId> <guardianId>`
+- `gog classroom guardians delete <studentId> <guardianId>`
+- `gog classroom guardian-invitations <studentId> [--state ...] [--max N] [--page TOKEN]`
+- `gog classroom guardian-invitations get <studentId> <invitationId>`
+- `gog classroom guardian-invitations create <studentId> --email EMAIL`
+- `gog classroom profile [userId]`
 - `gog gmail search <query> [--max N] [--page TOKEN]`
 - `gog gmail thread get <threadId> [--download]`
 - `gog gmail thread modify <threadId> [--add ...] [--remove ...]`
