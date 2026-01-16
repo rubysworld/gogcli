@@ -22,6 +22,7 @@
 
 - Gmail: `--body-file` for `send`, `drafts create`, and `drafts update` (use `-` for stdin) to send multi-line plain text.
 - Drive: `gog drive drives` lists shared drives (Team Drives). (#67) — thanks @pasogott.
+- Sheets: `gog sheets format` applies cell formatting via `--format-json` + `--format-fields`. (#72) — thanks @nilzzzzzz.
 
 ### Changed
 
@@ -32,7 +33,6 @@
 ### Added
 
 - Auth: Workspace service accounts (domain-wide delegation) for all services via `gog auth service-account ...` (preferred when configured). (#54) — thanks @pvieito.
-- Sheets: `gog sheets format` applies cell formatting via `--format-json` + `--format-fields`.
 
 ### Fixed
 

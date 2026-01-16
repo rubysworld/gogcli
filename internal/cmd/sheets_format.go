@@ -47,13 +47,13 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err := json.Unmarshal([]byte(c.FormatJSON), &format); err != nil {
 		return fmt.Errorf("invalid format JSON: %w", err)
 	}
-
-	rangeInfo, err := parseA1Range(rangeSpec)
-	if err != nil {
+	if err := applyForceSendFields(&format, formatFields); err != nil {
 		return err
 	}
-	if strings.TrimSpace(rangeInfo.SheetName) == "" {
-		return fmt.Errorf("format range must include a sheet name")
+
+	rangeInfo, err := parseSheetRange(rangeSpec, "format")
+	if err != nil {
+		return err
 	}
 
 	svc, err := newSheetsService(ctx, account)
@@ -65,16 +65,16 @@ func (c *SheetsFormatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	sheetID, ok := sheetIDs[rangeInfo.SheetName]
-	if !ok {
-		return fmt.Errorf("unknown sheet %q in format range", rangeInfo.SheetName)
+	gridRange, err := gridRangeFromMap(rangeInfo, sheetIDs, "format")
+	if err != nil {
+		return err
 	}
 
 	req := &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{
 			{
 				RepeatCell: &sheets.RepeatCellRequest{
-					Range: toGridRange(rangeInfo, sheetID),
+					Range: gridRange,
 					Cell: &sheets.CellData{
 						UserEnteredFormat: &format,
 					},

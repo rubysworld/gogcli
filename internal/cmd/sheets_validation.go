@@ -9,20 +9,13 @@ import (
 )
 
 func copyDataValidation(ctx context.Context, svc *sheets.Service, spreadsheetID, sourceA1, destA1 string) error {
-	sourceRange, err := parseA1Range(sourceA1)
+	sourceRange, err := parseSheetRange(sourceA1, "copy-validation-from")
 	if err != nil {
-		return fmt.Errorf("parse copy-validation-from: %w", err)
+		return err
 	}
-	destRange, err := parseA1Range(destA1)
+	destRange, err := parseSheetRange(destA1, "updated")
 	if err != nil {
-		return fmt.Errorf("parse updated range: %w", err)
-	}
-
-	if strings.TrimSpace(sourceRange.SheetName) == "" {
-		return fmt.Errorf("copy-validation-from must include a sheet name")
-	}
-	if strings.TrimSpace(destRange.SheetName) == "" {
-		return fmt.Errorf("updated range missing sheet name")
+		return err
 	}
 
 	sheetIDs, err := fetchSheetIDMap(ctx, svc, spreadsheetID)
@@ -30,21 +23,21 @@ func copyDataValidation(ctx context.Context, svc *sheets.Service, spreadsheetID,
 		return err
 	}
 
-	sourceSheetID, ok := sheetIDs[sourceRange.SheetName]
-	if !ok {
-		return fmt.Errorf("unknown sheet %q in copy-validation-from", sourceRange.SheetName)
+	sourceGrid, err := gridRangeFromMap(sourceRange, sheetIDs, "copy-validation-from")
+	if err != nil {
+		return err
 	}
-	destSheetID, ok := sheetIDs[destRange.SheetName]
-	if !ok {
-		return fmt.Errorf("unknown sheet %q in updated range", destRange.SheetName)
+	destGrid, err := gridRangeFromMap(destRange, sheetIDs, "updated")
+	if err != nil {
+		return err
 	}
 
 	req := &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{
 			{
 				CopyPaste: &sheets.CopyPasteRequest{
-					Source:      toGridRange(sourceRange, sourceSheetID),
-					Destination: toGridRange(destRange, destSheetID),
+					Source:      sourceGrid,
+					Destination: destGrid,
 					PasteType:   "PASTE_DATA_VALIDATION",
 				},
 			},
@@ -87,4 +80,23 @@ func toGridRange(r a1Range, sheetID int64) *sheets.GridRange {
 		StartColumnIndex: int64(r.StartCol - 1),
 		EndColumnIndex:   int64(r.EndCol),
 	}
+}
+
+func parseSheetRange(a1, label string) (a1Range, error) {
+	r, err := parseA1Range(a1)
+	if err != nil {
+		return a1Range{}, fmt.Errorf("parse %s range: %w", label, err)
+	}
+	if strings.TrimSpace(r.SheetName) == "" {
+		return a1Range{}, fmt.Errorf("%s range must include a sheet name", label)
+	}
+	return r, nil
+}
+
+func gridRangeFromMap(r a1Range, sheetIDs map[string]int64, label string) (*sheets.GridRange, error) {
+	sheetID, ok := sheetIDs[r.SheetName]
+	if !ok {
+		return nil, fmt.Errorf("unknown sheet %q in %s range", r.SheetName, label)
+	}
+	return toGridRange(r, sheetID), nil
 }

@@ -229,3 +229,22 @@ func TestSheetsFormat_ValidationErrors(t *testing.T) {
 		t.Fatalf("expected format missing sheet name error")
 	}
 }
+
+func TestParseSheetRangeAndGridRange(t *testing.T) {
+	if _, err := parseSheetRange("A1:B2", "format"); err == nil {
+		t.Fatalf("expected missing sheet name error")
+	}
+
+	r, err := parseSheetRange("Sheet1!B2:C3", "format")
+	if err != nil {
+		t.Fatalf("parseSheetRange: %v", err)
+	}
+
+	grid, err := gridRangeFromMap(r, map[string]int64{"Sheet1": 9}, "format")
+	if err != nil {
+		t.Fatalf("gridRangeFromMap: %v", err)
+	}
+	if grid.SheetId != 9 {
+		t.Fatalf("unexpected sheet id: %d", grid.SheetId)
+	}
+}
