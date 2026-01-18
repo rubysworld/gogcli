@@ -32,6 +32,9 @@ func (c *ChatMessagesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	if err := requireWorkspaceAccount(account); err != nil {
+		return err
+	}
 
 	space, err := normalizeSpace(c.Space)
 	if err != nil {
@@ -138,6 +141,9 @@ func (c *ChatMessagesSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
+		return err
+	}
+	if err := requireWorkspaceAccount(account); err != nil {
 		return err
 	}
 

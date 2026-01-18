@@ -58,6 +58,23 @@ func TestExecute_ChatSpacesList_Text(t *testing.T) {
 	}
 }
 
+func TestExecute_ChatSpacesList_ConsumerBlocked(t *testing.T) {
+	origNew := newChatService
+	t.Cleanup(func() { newChatService = origNew })
+	newChatService = func(context.Context, string) (*chat.Service, error) {
+		t.Fatalf("unexpected chat service call")
+		return nil, nil
+	}
+
+	err := Execute([]string{"--account", "user@gmail.com", "chat", "spaces", "list"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "Workspace") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestExecute_ChatSpacesFind_JSON(t *testing.T) {
 	origNew := newChatService
 	t.Cleanup(func() { newChatService = origNew })

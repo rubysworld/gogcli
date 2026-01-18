@@ -29,6 +29,9 @@ func (c *ChatSpacesListCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	if err := requireWorkspaceAccount(account); err != nil {
+		return err
+	}
 
 	svc, err := newChatService(ctx, account)
 	if err != nil {
@@ -101,6 +104,9 @@ func (c *ChatSpacesFindCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
+		return err
+	}
+	if err := requireWorkspaceAccount(account); err != nil {
 		return err
 	}
 
@@ -191,6 +197,9 @@ func (c *ChatSpacesCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
+		return err
+	}
+	if err := requireWorkspaceAccount(account); err != nil {
 		return err
 	}
 

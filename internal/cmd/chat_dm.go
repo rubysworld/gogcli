@@ -29,6 +29,9 @@ func (c *ChatDMSendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
+	if err := requireWorkspaceAccount(account); err != nil {
+		return err
+	}
 
 	email := strings.TrimSpace(c.Email)
 	if email == "" {
@@ -98,6 +101,9 @@ func (c *ChatDMSpaceCmd) Run(ctx context.Context, flags *RootFlags) error {
 	u := ui.FromContext(ctx)
 	account, err := requireAccount(flags)
 	if err != nil {
+		return err
+	}
+	if err := requireWorkspaceAccount(account); err != nil {
 		return err
 	}
 
