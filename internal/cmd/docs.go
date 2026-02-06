@@ -27,6 +27,8 @@ type DocsCmd struct {
 	Create DocsCreateCmd `cmd:"" name:"create" help:"Create a Google Doc"`
 	Copy   DocsCopyCmd   `cmd:"" name:"copy" help:"Copy a Google Doc"`
 	Cat    DocsCatCmd    `cmd:"" name:"cat" help:"Print a Google Doc as plain text"`
+	Update DocsUpdateCmd `cmd:"" name:"update" help:"Update a Google Doc content"`
+	Append DocsAppendCmd `cmd:"" name:"append" help:"Append content to a Google Doc"`
 }
 
 type DocsExportCmd struct {
@@ -108,8 +110,10 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 }
 
 type DocsCreateCmd struct {
-	Title  string `arg:"" name:"title" help:"Doc title"`
-	Parent string `name:"parent" help:"Destination folder ID"`
+	Title       string `arg:"" name:"title" help:"Doc title"`
+	Parent      string `name:"parent" help:"Destination folder ID"`
+	Content     string `name:"content" help:"Initial text content"`
+	ContentFile string `name:"content-file" help:"Read initial content from file"`
 }
 
 func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -122,6 +126,12 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	title := strings.TrimSpace(c.Title)
 	if title == "" {
 		return usage("empty title")
+	}
+
+	// Get content from flag or file
+	content, err := resolveContent(c.Content, c.ContentFile)
+	if err != nil {
+		return err
 	}
 
 	svc, err := newDriveService(ctx, account)
@@ -148,6 +158,32 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	if created == nil {
 		return errors.New("create failed")
+	}
+
+	// If content provided, insert it using Docs API
+	if content != "" {
+		docsSvc, err := newDocsService(ctx, account)
+		if err != nil {
+			return fmt.Errorf("docs service: %w", err)
+		}
+
+		req := &docs.BatchUpdateDocumentRequest{
+			Requests: []*docs.Request{
+				{
+					InsertText: &docs.InsertTextRequest{
+						Text: content,
+						Location: &docs.Location{
+							Index: 1, // Insert at beginning (after the implicit newline)
+						},
+					},
+				},
+			},
+		}
+
+		_, err = docsSvc.Documents.BatchUpdate(created.Id, req).Context(ctx).Do()
+		if err != nil {
+			return fmt.Errorf("insert content: %w", err)
+		}
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -218,6 +254,215 @@ func (c *DocsCatCmd) Run(ctx context.Context, flags *RootFlags) error {
 	}
 	_, err = io.WriteString(os.Stdout, text)
 	return err
+}
+
+type DocsUpdateCmd struct {
+	DocID       string `arg:"" name:"docId" help:"Doc ID"`
+	Content     string `name:"content" help:"New text content"`
+	ContentFile string `name:"content-file" help:"Read content from file"`
+	ReplaceAll  bool   `name:"replace-all" help:"Replace all existing content"`
+	InsertAt    int64  `name:"insert-at" help:"Insert at specific index (1-based)" default:"1"`
+}
+
+func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	id := strings.TrimSpace(c.DocID)
+	if id == "" {
+		return usage("empty docId")
+	}
+
+	content, err := resolveContent(c.Content, c.ContentFile)
+	if err != nil {
+		return err
+	}
+	if content == "" {
+		return usage("no content provided (use --content or --content-file)")
+	}
+
+	svc, err := newDocsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	var requests []*docs.Request
+
+	if c.ReplaceAll {
+		// Get the document to find its length
+		doc, err := svc.Documents.Get(id).Context(ctx).Do()
+		if err != nil {
+			if isDocsNotFound(err) {
+				return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+			}
+			return err
+		}
+
+		// Calculate end index (Body.Content has structural elements, last one's EndIndex - 1)
+		endIndex := getDocEndIndex(doc)
+		if endIndex > 1 {
+			// Delete existing content (from index 1 to end-1, preserving trailing newline)
+			requests = append(requests, &docs.Request{
+				DeleteContentRange: &docs.DeleteContentRangeRequest{
+					Range: &docs.Range{
+						StartIndex: 1,
+						EndIndex:   endIndex,
+					},
+				},
+			})
+		}
+	}
+
+	// Insert new content
+	insertIndex := c.InsertAt
+	if insertIndex < 1 {
+		insertIndex = 1
+	}
+	requests = append(requests, &docs.Request{
+		InsertText: &docs.InsertTextRequest{
+			Text: content,
+			Location: &docs.Location{
+				Index: insertIndex,
+			},
+		},
+	})
+
+	req := &docs.BatchUpdateDocumentRequest{
+		Requests: requests,
+	}
+
+	resp, err := svc.Documents.BatchUpdate(id, req).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("update failed: %w", err)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"documentId": resp.DocumentId,
+			"updated":    true,
+		})
+	}
+
+	u.Out().Printf("id\t%s", resp.DocumentId)
+	u.Out().Printf("updated\ttrue")
+	if link := docsWebViewLink(resp.DocumentId); link != "" {
+		u.Out().Printf("link\t%s", link)
+	}
+	return nil
+}
+
+type DocsAppendCmd struct {
+	DocID       string `arg:"" name:"docId" help:"Doc ID"`
+	Content     string `name:"content" help:"Text content to append"`
+	ContentFile string `name:"content-file" help:"Read content from file"`
+	Newline     bool   `name:"newline" help:"Add newline before appending" default:"true"`
+}
+
+func (c *DocsAppendCmd) Run(ctx context.Context, flags *RootFlags) error {
+	u := ui.FromContext(ctx)
+	account, err := requireAccount(flags)
+	if err != nil {
+		return err
+	}
+
+	id := strings.TrimSpace(c.DocID)
+	if id == "" {
+		return usage("empty docId")
+	}
+
+	content, err := resolveContent(c.Content, c.ContentFile)
+	if err != nil {
+		return err
+	}
+	if content == "" {
+		return usage("no content provided (use --content or --content-file)")
+	}
+
+	svc, err := newDocsService(ctx, account)
+	if err != nil {
+		return err
+	}
+
+	// Get the document to find its end position
+	doc, err := svc.Documents.Get(id).Context(ctx).Do()
+	if err != nil {
+		if isDocsNotFound(err) {
+			return fmt.Errorf("doc not found or not a Google Doc (id=%s)", id)
+		}
+		return err
+	}
+
+	// Get end index for insertion
+	endIndex := getDocEndIndex(doc)
+
+	// Prepend newline if requested and doc has content
+	textToInsert := content
+	if c.Newline && endIndex > 1 {
+		textToInsert = "\n" + content
+	}
+
+	req := &docs.BatchUpdateDocumentRequest{
+		Requests: []*docs.Request{
+			{
+				InsertText: &docs.InsertTextRequest{
+					Text: textToInsert,
+					Location: &docs.Location{
+						Index: endIndex,
+					},
+				},
+			},
+		},
+	}
+
+	resp, err := svc.Documents.BatchUpdate(id, req).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("append failed: %w", err)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(os.Stdout, map[string]any{
+			"documentId": resp.DocumentId,
+			"appended":   true,
+		})
+	}
+
+	u.Out().Printf("id\t%s", resp.DocumentId)
+	u.Out().Printf("appended\ttrue")
+	if link := docsWebViewLink(resp.DocumentId); link != "" {
+		u.Out().Printf("link\t%s", link)
+	}
+	return nil
+}
+
+// resolveContent returns content from --content flag or reads from --content-file
+func resolveContent(content, contentFile string) (string, error) {
+	if content != "" && contentFile != "" {
+		return "", errors.New("cannot use both --content and --content-file")
+	}
+	if contentFile != "" {
+		data, err := os.ReadFile(contentFile)
+		if err != nil {
+			return "", fmt.Errorf("read content file: %w", err)
+		}
+		return string(data), nil
+	}
+	return content, nil
+}
+
+// getDocEndIndex returns the index position at the end of the document body
+func getDocEndIndex(doc *docs.Document) int64 {
+	if doc == nil || doc.Body == nil || len(doc.Body.Content) == 0 {
+		return 1
+	}
+	// The last element's EndIndex points to the position after all content
+	last := doc.Body.Content[len(doc.Body.Content)-1]
+	if last.EndIndex > 1 {
+		return last.EndIndex - 1 // -1 to stay before the implicit trailing newline
+	}
+	return 1
 }
 
 func docsWebViewLink(id string) string {
