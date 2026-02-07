@@ -110,8 +110,14 @@ func (w *walker) walk(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		return ast.WalkContinue, nil
 
 	case *ast.TextBlock:
-		if !entering {
+		if entering {
+			w.paragraphStart = w.currentIndex()
+		} else {
 			w.buf.WriteString("\n")
+			// TextBlock is used inside list items, apply bullets if in a list
+			if w.inList {
+				w.addBulletRequest(w.paragraphStart, w.currentIndex(), w.listOrdered)
+			}
 		}
 		return ast.WalkContinue, nil
 
