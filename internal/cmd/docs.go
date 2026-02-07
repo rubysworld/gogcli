@@ -15,6 +15,7 @@ import (
 	gapi "google.golang.org/api/googleapi"
 
 	"github.com/steipete/gogcli/internal/googleapi"
+	"github.com/steipete/gogcli/internal/markdown"
 	"github.com/steipete/gogcli/internal/outfmt"
 	"github.com/steipete/gogcli/internal/ui"
 )
@@ -112,8 +113,9 @@ func (c *DocsInfoCmd) Run(ctx context.Context, flags *RootFlags) error {
 type DocsCreateCmd struct {
 	Title       string `arg:"" name:"title" help:"Doc title"`
 	Parent      string `name:"parent" help:"Destination folder ID"`
-	Content     string `name:"content" help:"Initial text content"`
-	ContentFile string `name:"content-file" help:"Read initial content from file"`
+	Content     string `name:"content" help:"Initial text content (supports markdown)"`
+	ContentFile string `name:"content-file" help:"Read initial content from file (supports markdown)"`
+	NoMarkdown  bool   `name:"no-markdown" help:"Skip markdown parsing, treat content as plain text"`
 }
 
 func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -167,17 +169,34 @@ func (c *DocsCreateCmd) Run(ctx context.Context, flags *RootFlags) error {
 			return fmt.Errorf("docs service: %w", err)
 		}
 
-		req := &docs.BatchUpdateDocumentRequest{
-			Requests: []*docs.Request{
-				{
-					InsertText: &docs.InsertTextRequest{
-						Text: content,
-						Location: &docs.Location{
-							Index: 1, // Insert at beginning (after the implicit newline)
-						},
+		var requests []*docs.Request
+
+		if c.NoMarkdown {
+			// Plain text mode - just insert text as-is
+			requests = append(requests, &docs.Request{
+				InsertText: &docs.InsertTextRequest{
+					Text: content,
+					Location: &docs.Location{
+						Index: 1,
 					},
 				},
-			},
+			})
+		} else {
+			// Parse markdown and build formatting requests
+			result := markdown.Parse(content, 1)
+			requests = append(requests, &docs.Request{
+				InsertText: &docs.InsertTextRequest{
+					Text: result.PlainText,
+					Location: &docs.Location{
+						Index: 1,
+					},
+				},
+			})
+			requests = append(requests, result.Requests...)
+		}
+
+		req := &docs.BatchUpdateDocumentRequest{
+			Requests: requests,
 		}
 
 		_, err = docsSvc.Documents.BatchUpdate(created.Id, req).Context(ctx).Do()
@@ -258,10 +277,11 @@ func (c *DocsCatCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type DocsUpdateCmd struct {
 	DocID       string `arg:"" name:"docId" help:"Doc ID"`
-	Content     string `name:"content" help:"New text content"`
-	ContentFile string `name:"content-file" help:"Read content from file"`
+	Content     string `name:"content" help:"New text content (supports markdown)"`
+	ContentFile string `name:"content-file" help:"Read content from file (supports markdown)"`
 	ReplaceAll  bool   `name:"replace-all" help:"Replace all existing content"`
 	InsertAt    int64  `name:"insert-at" help:"Insert at specific index (1-based)" default:"1"`
+	NoMarkdown  bool   `name:"no-markdown" help:"Skip markdown parsing, treat content as plain text"`
 }
 
 func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -321,14 +341,30 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if insertIndex < 1 {
 		insertIndex = 1
 	}
-	requests = append(requests, &docs.Request{
-		InsertText: &docs.InsertTextRequest{
-			Text: content,
-			Location: &docs.Location{
-				Index: insertIndex,
+
+	if c.NoMarkdown {
+		// Plain text mode
+		requests = append(requests, &docs.Request{
+			InsertText: &docs.InsertTextRequest{
+				Text: content,
+				Location: &docs.Location{
+					Index: insertIndex,
+				},
 			},
-		},
-	})
+		})
+	} else {
+		// Parse markdown and build formatting requests
+		result := markdown.Parse(content, insertIndex)
+		requests = append(requests, &docs.Request{
+			InsertText: &docs.InsertTextRequest{
+				Text: result.PlainText,
+				Location: &docs.Location{
+					Index: insertIndex,
+				},
+			},
+		})
+		requests = append(requests, result.Requests...)
+	}
 
 	req := &docs.BatchUpdateDocumentRequest{
 		Requests: requests,
@@ -356,9 +392,10 @@ func (c *DocsUpdateCmd) Run(ctx context.Context, flags *RootFlags) error {
 
 type DocsAppendCmd struct {
 	DocID       string `arg:"" name:"docId" help:"Doc ID"`
-	Content     string `name:"content" help:"Text content to append"`
-	ContentFile string `name:"content-file" help:"Read content from file"`
+	Content     string `name:"content" help:"Text content to append (supports markdown)"`
+	ContentFile string `name:"content-file" help:"Read content from file (supports markdown)"`
 	Newline     bool   `name:"newline" help:"Add newline before appending" default:"true"`
+	NoMarkdown  bool   `name:"no-markdown" help:"Skip markdown parsing, treat content as plain text"`
 }
 
 func (c *DocsAppendCmd) Run(ctx context.Context, flags *RootFlags) error {
@@ -399,22 +436,44 @@ func (c *DocsAppendCmd) Run(ctx context.Context, flags *RootFlags) error {
 	endIndex := getDocEndIndex(doc)
 
 	// Prepend newline if requested and doc has content
-	textToInsert := content
+	prefix := ""
 	if c.Newline && endIndex > 1 {
-		textToInsert = "\n" + content
+		prefix = "\n"
+	}
+
+	var requests []*docs.Request
+
+	if c.NoMarkdown {
+		// Plain text mode
+		requests = append(requests, &docs.Request{
+			InsertText: &docs.InsertTextRequest{
+				Text: prefix + content,
+				Location: &docs.Location{
+					Index: endIndex,
+				},
+			},
+		})
+	} else {
+		// Parse markdown and build formatting requests
+		// Account for the prefix newline in the base index
+		baseIndex := endIndex
+		if prefix != "" {
+			baseIndex++
+		}
+		result := markdown.Parse(content, baseIndex)
+		requests = append(requests, &docs.Request{
+			InsertText: &docs.InsertTextRequest{
+				Text: prefix + result.PlainText,
+				Location: &docs.Location{
+					Index: endIndex,
+				},
+			},
+		})
+		requests = append(requests, result.Requests...)
 	}
 
 	req := &docs.BatchUpdateDocumentRequest{
-		Requests: []*docs.Request{
-			{
-				InsertText: &docs.InsertTextRequest{
-					Text: textToInsert,
-					Location: &docs.Location{
-						Index: endIndex,
-					},
-				},
-			},
-		},
+		Requests: requests,
 	}
 
 	resp, err := svc.Documents.BatchUpdate(id, req).Context(ctx).Do()
