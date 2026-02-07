@@ -12,14 +12,15 @@ func TestParseNestedBullets(t *testing.T) {
 
 	result := Parse(content, 1)
 
-	// Should have 4 lines of text
-	expectedText := "Top level\nSub-bullet\nSub-sub-bullet\nBack to top\n"
+	// Should have 4 lines of text with tabs for nested items
+	// Level 1: no tabs, Level 2: 1 tab, Level 3: 2 tabs
+	expectedText := "Top level\n\tSub-bullet\n\t\tSub-sub-bullet\nBack to top\n"
 	if result.PlainText != expectedText {
 		t.Errorf("PlainText = %q, want %q", result.PlainText, expectedText)
 	}
 
 	// Should have bullet requests for each list item
-	// Plus indentation requests for nested items (level 2 and 3)
+	// No indentation requests - Google Docs uses the tabs for nesting
 	bulletCount := 0
 	indentCount := 0
 	for _, req := range result.Requests {
@@ -35,9 +36,9 @@ func TestParseNestedBullets(t *testing.T) {
 		t.Errorf("bullet requests = %d, want 4", bulletCount)
 	}
 
-	// Level 2 and 3 items should have indentation (2 items)
-	if indentCount != 2 {
-		t.Errorf("indent requests = %d, want 2", indentCount)
+	// Should have NO indentation requests - nesting is handled by tabs
+	if indentCount != 0 {
+		t.Errorf("indent requests = %d, want 0 (nesting via tabs)", indentCount)
 	}
 }
 
@@ -49,7 +50,8 @@ func TestParseNestedOrderedList(t *testing.T) {
 
 	result := Parse(content, 1)
 
-	expectedText := "First\nNested first\nNested second\nSecond\n"
+	// Nested items should have 1 tab prefix
+	expectedText := "First\n\tNested first\n\tNested second\nSecond\n"
 	if result.PlainText != expectedText {
 		t.Errorf("PlainText = %q, want %q", result.PlainText, expectedText)
 	}
@@ -94,5 +96,27 @@ func TestParseMixedNestedLists(t *testing.T) {
 	}
 	if orderedCount != 2 {
 		t.Errorf("ordered bullet requests = %d, want 2", orderedCount)
+	}
+}
+
+func TestParseDeepNesting(t *testing.T) {
+	content := `- Level 1
+  - Level 2
+    - Level 3
+      - Level 4`
+
+	result := Parse(content, 1)
+
+	// Each level should have the appropriate number of tabs
+	expectedText := "Level 1\n\tLevel 2\n\t\tLevel 3\n\t\t\tLevel 4\n"
+	if result.PlainText != expectedText {
+		t.Errorf("PlainText = %q, want %q", result.PlainText, expectedText)
+	}
+
+	// Verify no indentation requests
+	for _, req := range result.Requests {
+		if req.UpdateParagraphStyle != nil && req.UpdateParagraphStyle.ParagraphStyle.IndentStart != nil {
+			t.Error("unexpected indentation request - nesting should use tabs")
+		}
 	}
 }

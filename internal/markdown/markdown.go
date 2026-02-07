@@ -89,12 +89,17 @@ func (w *walker) walk(n ast.Node, entering bool) (ast.WalkStatus, error) {
 	case *ast.Paragraph:
 		if entering {
 			w.paragraphStart = w.currentIndex()
+			// For nested lists, prepend tabs before the paragraph content
+			// Google Docs API determines nesting level by counting leading tabs
+			if w.listDepth > 1 {
+				w.buf.WriteString(strings.Repeat("\t", w.listDepth-1))
+			}
 		} else {
 			w.buf.WriteString("\n")
 			// If we're in a list, track the paragraph range for bullets
 			if w.listDepth > 0 && len(w.listOrderedStack) > 0 {
 				ordered := w.listOrderedStack[len(w.listOrderedStack)-1]
-				w.addBulletRequest(w.paragraphStart, w.currentIndex(), ordered, w.listDepth)
+				w.addBulletRequest(w.paragraphStart, w.currentIndex(), ordered)
 			}
 		}
 		return ast.WalkContinue, nil
@@ -118,12 +123,17 @@ func (w *walker) walk(n ast.Node, entering bool) (ast.WalkStatus, error) {
 	case *ast.TextBlock:
 		if entering {
 			w.paragraphStart = w.currentIndex()
+			// For nested lists, prepend tabs before the text block content
+			// Google Docs API determines nesting level by counting leading tabs
+			if w.listDepth > 1 {
+				w.buf.WriteString(strings.Repeat("\t", w.listDepth-1))
+			}
 		} else {
 			w.buf.WriteString("\n")
 			// TextBlock is used inside list items, apply bullets if in a list
 			if w.listDepth > 0 && len(w.listOrderedStack) > 0 {
 				ordered := w.listOrderedStack[len(w.listOrderedStack)-1]
-				w.addBulletRequest(w.paragraphStart, w.currentIndex(), ordered, w.listDepth)
+				w.addBulletRequest(w.paragraphStart, w.currentIndex(), ordered)
 			}
 		}
 		return ast.WalkContinue, nil
@@ -420,7 +430,7 @@ func (w *walker) addLinkStyle(start, end int64, url string) {
 	})
 }
 
-func (w *walker) addBulletRequest(start, end int64, ordered bool, nestingLevel int) {
+func (w *walker) addBulletRequest(start, end int64, ordered bool) {
 	if start >= end {
 		return
 	}
@@ -439,30 +449,6 @@ func (w *walker) addBulletRequest(start, end int64, ordered bool, nestingLevel i
 			BulletPreset: preset,
 		},
 	})
-
-	// Apply indentation for nested lists
-	// Level 1: 18pt, Level 2: 54pt (18 + 36), Level 3: 90pt (18 + 36*2), etc.
-	// Each nesting level adds 36pt of indentation
-	if nestingLevel > 1 {
-		indentPt := 18.0 + float64(nestingLevel-1)*36.0
-		w.requests = append(w.requests, &docs.Request{
-			UpdateParagraphStyle: &docs.UpdateParagraphStyleRequest{
-				Range: &docs.Range{
-					StartIndex: start,
-					EndIndex:   end,
-				},
-				ParagraphStyle: &docs.ParagraphStyle{
-					IndentStart: &docs.Dimension{
-						Magnitude: indentPt,
-						Unit:      "PT",
-					},
-					IndentFirstLine: &docs.Dimension{
-						Magnitude: indentPt - 18, // Bullet hangs 18pt to the left
-						Unit:                     "PT",
-					},
-				},
-				Fields: "indentStart,indentFirstLine",
-			},
-		})
-	}
+	// Note: Nesting is handled automatically by Google Docs based on leading tab characters
+	// that we prepend to nested list items. No manual indentation needed.
 }
