@@ -64,8 +64,10 @@ type walker struct {
 
 	// Track current paragraph for list bullets
 	paragraphStart int64
-	inList         bool
-	listOrdered    bool
+	// listDepth tracks nesting level (0 = not in list, 1 = top level, 2 = nested, etc.)
+	listDepth int
+	// listOrderedStack tracks whether each nesting level is ordered (true) or unordered (false)
+	listOrderedStack []bool
 }
 
 func (w *walker) walk(n ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -90,18 +92,22 @@ func (w *walker) walk(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		} else {
 			w.buf.WriteString("\n")
 			// If we're in a list, track the paragraph range for bullets
-			if w.inList {
-				w.addBulletRequest(w.paragraphStart, w.currentIndex(), w.listOrdered)
+			if w.listDepth > 0 && len(w.listOrderedStack) > 0 {
+				ordered := w.listOrderedStack[len(w.listOrderedStack)-1]
+				w.addBulletRequest(w.paragraphStart, w.currentIndex(), ordered, w.listDepth)
 			}
 		}
 		return ast.WalkContinue, nil
 
 	case *ast.List:
 		if entering {
-			w.inList = true
-			w.listOrdered = node.IsOrdered()
+			w.listDepth++
+			w.listOrderedStack = append(w.listOrderedStack, node.IsOrdered())
 		} else {
-			w.inList = false
+			w.listDepth--
+			if len(w.listOrderedStack) > 0 {
+				w.listOrderedStack = w.listOrderedStack[:len(w.listOrderedStack)-1]
+			}
 		}
 		return ast.WalkContinue, nil
 
@@ -115,8 +121,9 @@ func (w *walker) walk(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		} else {
 			w.buf.WriteString("\n")
 			// TextBlock is used inside list items, apply bullets if in a list
-			if w.inList {
-				w.addBulletRequest(w.paragraphStart, w.currentIndex(), w.listOrdered)
+			if w.listDepth > 0 && len(w.listOrderedStack) > 0 {
+				ordered := w.listOrderedStack[len(w.listOrderedStack)-1]
+				w.addBulletRequest(w.paragraphStart, w.currentIndex(), ordered, w.listDepth)
 			}
 		}
 		return ast.WalkContinue, nil
@@ -413,7 +420,7 @@ func (w *walker) addLinkStyle(start, end int64, url string) {
 	})
 }
 
-func (w *walker) addBulletRequest(start, end int64, ordered bool) {
+func (w *walker) addBulletRequest(start, end int64, ordered bool, nestingLevel int) {
 	if start >= end {
 		return
 	}
@@ -432,4 +439,30 @@ func (w *walker) addBulletRequest(start, end int64, ordered bool) {
 			BulletPreset: preset,
 		},
 	})
+
+	// Apply indentation for nested lists
+	// Level 1: 18pt, Level 2: 54pt (18 + 36), Level 3: 90pt (18 + 36*2), etc.
+	// Each nesting level adds 36pt of indentation
+	if nestingLevel > 1 {
+		indentPt := 18.0 + float64(nestingLevel-1)*36.0
+		w.requests = append(w.requests, &docs.Request{
+			UpdateParagraphStyle: &docs.UpdateParagraphStyleRequest{
+				Range: &docs.Range{
+					StartIndex: start,
+					EndIndex:   end,
+				},
+				ParagraphStyle: &docs.ParagraphStyle{
+					IndentStart: &docs.Dimension{
+						Magnitude: indentPt,
+						Unit:      "PT",
+					},
+					IndentFirstLine: &docs.Dimension{
+						Magnitude: indentPt - 18, // Bullet hangs 18pt to the left
+						Unit:                     "PT",
+					},
+				},
+				Fields: "indentStart,indentFirstLine",
+			},
+		})
+	}
 }
